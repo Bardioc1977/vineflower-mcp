@@ -13,10 +13,22 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
           cache: "npm"
+      - name: Validate tag and set version
+        run: |
+          set -euo pipefail
+          VERSION="$(./scripts/get_tag_version.sh)"
+          if [[ "$VERSION" != "$GITHUB_REF_NAME" ]]; then
+            echo "Error: tag $GITHUB_REF_NAME does not match computed version $VERSION." >&2
+            exit 1
+          fi
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          npm version --no-git-tag-version "${VERSION#v}"
       - run: npm ci
       - run: npm run build
       - run: tar -czf vineflower-mcp-dist.tgz dist README.md package.json

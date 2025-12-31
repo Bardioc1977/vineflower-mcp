@@ -15,6 +15,34 @@ Optional prefetch (downloads Vineflower jar only when `MCP_VINEFLOWER_AUTO_DOWNL
 MCP_VINEFLOWER_AUTO_DOWNLOAD=1 npm run setup:vineflower
 ```
 
+## Release versioning
+
+Tags drive releases. The version format is `vYYYY.MM.DD.N` (UTC date + commit count for that date).
+
+```bash
+# Print the computed tag for HEAD.
+npm run -s tag:version
+
+# Update package.json/package-lock.json to match the computed version.
+npm run tag:apply
+
+# Update version and create a matching tag.
+npm run tag:release
+
+# Push the computed tag to origin.
+npm run tag:push
+
+# Apply version, create tag, and push it.
+npm run tag:release:push
+
+# Create a matching tag for release.
+git tag "$(npm run -s tag:version)"
+```
+
+The release workflow validates that the pushed tag matches the computed version.
+Local tag scripts expect a clean working tree; the only allowed local changes are `package.json` and
+`package-lock.json` created by the version bump.
+
 ## Environment
 
 ```bash

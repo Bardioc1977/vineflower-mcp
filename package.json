@@ -8,7 +8,12 @@
     "dev": "tsx src/server.ts",
     "build": "tsc",
     "start": "node dist/server.js",
-    "setup:vineflower": "tsx src/server.ts --setup"
+    "setup:vineflower": "tsx src/server.ts --setup",
+    "tag:version": "./scripts/get_tag_version.sh",
+    "tag:apply": "VERSION=\"$(./scripts/get_tag_version.sh)\" && npm version --no-git-tag-version \"${VERSION#v}\"",
+    "tag:release": "VERSION=\"$(./scripts/get_tag_version.sh)\" && ./scripts/tag_checks.sh release \"$VERSION\" && npm version --no-git-tag-version \"${VERSION#v}\" && git tag \"$VERSION\"",
+    "tag:push": "VERSION=\"$(./scripts/get_tag_version.sh)\" && ./scripts/tag_checks.sh push \"$VERSION\" && git push origin \"$VERSION\"",
+    "tag:release:push": "VERSION=\"$(./scripts/get_tag_version.sh)\" && ./scripts/tag_checks.sh release \"$VERSION\" && npm version --no-git-tag-version \"${VERSION#v}\" && git tag \"$VERSION\" && ./scripts/tag_checks.sh push \"$VERSION\" && git push origin \"$VERSION\""
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",
