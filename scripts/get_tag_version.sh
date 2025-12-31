@@ -8,9 +8,17 @@ if [[ -z "$repo_root" ]]; then
 fi
 
 head_epoch=$(git -C "$repo_root" show -s --format=%ct HEAD)
+if [[ -z "$head_epoch" ]]; then
+  echo "Error: could not resolve HEAD timestamp." >&2
+  exit 1
+fi
 
-read -r year month day day_start day_end <<<"$(node - <<'NODE' "$head_epoch"
-const epoch = Number(process.argv[1]);
+read -r year month day day_start day_end <<<"$(HEAD_EPOCH="$head_epoch" node - <<'NODE'
+const epoch = Number(process.env.HEAD_EPOCH);
+if (!Number.isFinite(epoch)) {
+  console.error('Error: invalid HEAD timestamp.');
+  process.exit(1);
+}
 const date = new Date(epoch * 1000);
 const year = date.getUTCFullYear();
 const month = String(date.getUTCMonth() + 1).padStart(2, '0');
