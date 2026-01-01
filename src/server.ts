@@ -101,7 +101,7 @@ async function main() {
   const mcpServer = new McpServer(
     {
       name: "vineflower-mcp",
-      version: "1.0.0-beta1"
+      version: "2026.01.01.2"
     },
     {
       capabilities: {
@@ -633,7 +633,7 @@ async function statOrNull(targetPath: string) {
 function sanitizeExtraArgs(extraArgs: string[]) {
   const sanitized: string[] = [];
   for (const arg of extraArgs) {
-    if (!arg || typeof arg !== "string") {
+    if (!arg) {
       continue;
     }
     if (arg.includes("..") || arg.includes("/") || arg.includes("\\")) {
@@ -918,7 +918,7 @@ function extractClassNames(content: string) {
 }
 
 function hasMainMethod(content: string) {
-  return /\bpublic\s+static\s+void\s+main\s*\(\s*String\s*(\[\s*\]|\.\.\.)\s+\w+\s*\)/.test(
+  return /\bpublic\s+static\s+void\s+main\s*\(\s*String\s*(\[\s*]|\.\.\.)\s+\w+\s*\)/.test(
     content
   );
 }
