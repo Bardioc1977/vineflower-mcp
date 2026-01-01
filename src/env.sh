@@ -1,6 +1,0 @@
-export MCP_ALLOWED_ROOT="/Volumes/Privat/workspaces/private/vineflower-mcp-workspace/atlassian-jira"
-export VINEFLOWER_BIN="vineflower"
-export MCP_TIMEOUT_MS="1800000"
-export MCP_MAX_CAPTURE_CHARS="200000"
-export MCP_MAX_JARS="500"
-export VINEFLOWER_THREADS="4"
