@@ -15,6 +15,68 @@ Optional prefetch (downloads Vineflower jar only when `MCP_VINEFLOWER_AUTO_DOWNL
 MCP_VINEFLOWER_AUTO_DOWNLOAD=1 npm run setup:vineflower
 ```
 
+## MCP client registration
+
+The server speaks stdio, so each client needs a command and args that start `dist/server.js`. Examples
+below assume a local checkout and macOS paths. Adjust paths and environment as needed.
+
+### Codex CLI
+
+Add a server entry in `~/.codex/config.toml`:
+
+```toml
+[mcp_servers.vineflower-mcp]
+command = "node"
+args = ["/path/to/vineflower-mcp/dist/server.js"]
+env = { MCP_ALLOWED_ROOT = "/path/to/workspace", VINEFLOWER_BIN = "vineflower", VINEFLOWER_THREADS = "4" }
+```
+
+### Gemini CLI
+
+Create or update the Gemini MCP config (commonly `~/.config/gemini-cli/mcp.json`):
+
+```json
+{
+  "mcpServers": {
+    "vineflower-mcp": {
+      "command": "node",
+      "args": ["/path/to/vineflower-mcp/dist/server.js"],
+      "env": {
+        "MCP_ALLOWED_ROOT": "/path/to/workspace",
+        "VINEFLOWER_BIN": "vineflower",
+        "VINEFLOWER_THREADS": "4"
+      }
+    }
+  }
+}
+```
+
+### Claude Code
+
+Claude Code uses the same MCP JSON format as Claude Desktop. Configuration locations:
+
+- macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
+- Linux: `~/.config/Claude/claude_desktop_config.json`
+- Windows: `%APPDATA%\\Claude\\claude_desktop_config.json`
+
+Example:
+
+```json
+{
+  "mcpServers": {
+    "vineflower-mcp": {
+      "command": "node",
+      "args": ["/path/to/vineflower-mcp/dist/server.js"],
+      "env": {
+        "MCP_ALLOWED_ROOT": "/path/to/workspace",
+        "VINEFLOWER_BIN": "vineflower",
+        "VINEFLOWER_THREADS": "4"
+      }
+    }
+  }
+}
+```
+
 ## Release versioning
 
 Tags drive releases. The version format is `vYYYY.MM.DD.N` (UTC date + commit count for that date).

@@ -101,7 +101,7 @@ async function main() {
   const mcpServer = new McpServer(
     {
       name: "vineflower-mcp",
-      version: "2026.01.01.2"
+      version: "2026.01.01.5"
     },
     {
       capabilities: {
