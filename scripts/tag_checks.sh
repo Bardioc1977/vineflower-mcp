@@ -23,7 +23,7 @@ while IFS= read -r -d '' entry; do
     path="${path##* -> }"
   fi
   case "$path" in
-    package.json|package-lock.json) ;;
+    package.json|package-lock.json|src/server.ts|dist/server.js) ;;
     *)
       echo "Error: working tree has changes in $path." >&2
       has_disallowed_changes=true

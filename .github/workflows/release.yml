@@ -28,7 +28,7 @@ jobs:
             exit 1
           fi
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
-          npm version --no-git-tag-version "${VERSION#v}"
+          ./scripts/tag_version.sh >/dev/null
       - run: npm ci
       - run: npm run build
       - run: tar -czf vineflower-mcp-dist.tgz dist README.md package.json

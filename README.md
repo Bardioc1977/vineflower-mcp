@@ -20,11 +20,11 @@ MCP_VINEFLOWER_AUTO_DOWNLOAD=1 npm run setup:vineflower
 Tags drive releases. The version format is `vYYYY.MM.DD.N` (UTC date + commit count for that date).
 
 ```bash
-# Print the computed tag for HEAD.
-npm run -s tag:version
+# Update package.json/package-lock.json and server version to match the computed version.
+npm run tag:version
 
-# Update package.json/package-lock.json to match the computed version.
-npm run tag:apply
+# Print the computed tag for HEAD without changing files.
+./scripts/get_tag_version.sh
 
 # Update version and create a matching tag.
 npm run tag:release

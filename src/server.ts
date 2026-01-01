@@ -1,6 +1,6 @@
-import { Server } from "@modelcontextprotocol/sdk/server/index.js";
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
+import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import fs from "node:fs/promises";
 import { createReadStream, createWriteStream } from "node:fs";
@@ -87,49 +87,6 @@ const IndexInputSchema = z.object({
   maxFiles: z.number().int().positive().max(200_000).optional().default(50_000)
 });
 
-const PlanToolSchema = {
-  type: "object",
-  properties: {
-    searchDir: { type: "string" },
-    jarGlobHint: { type: "string" },
-    maxResults: { type: "integer", default: 2000 }
-  },
-  required: ["searchDir"],
-  additionalProperties: false
-};
-
-const DecompileToolSchema = {
-  type: "object",
-  properties: {
-    inputJars: { type: "array", items: { type: "string" } },
-    libraryJars: { type: "array", items: { type: "string" }, default: [] },
-    outputDir: { type: "string" },
-    overwrite: { type: "boolean", default: false },
-    mode: { type: "string", enum: ["sources", "meta", "sources+meta"], default: "sources+meta" },
-    options: {
-      type: "object",
-      properties: {
-        threads: { type: "integer" },
-        extraArgs: { type: "array", items: { type: "string" } }
-      },
-      additionalProperties: false
-    }
-  },
-  required: ["inputJars", "outputDir"],
-  additionalProperties: false
-};
-
-const IndexToolSchema = {
-  type: "object",
-  properties: {
-    sourceRoot: { type: "string" },
-    maxFileBytes: { type: "integer", default: 500000 },
-    maxFiles: { type: "integer", default: 50000 }
-  },
-  required: ["sourceRoot"],
-  additionalProperties: false
-};
-
 async function main() {
   const allowedRoot = await resolveAllowedRoot();
   const vineflowerCommand = await ensureVineflower();
@@ -141,7 +98,7 @@ async function main() {
     return;
   }
 
-  const server = new Server(
+  const mcpServer = new McpServer(
     {
       name: "vineflower-mcp",
       version: "1.0.0-beta1"
@@ -153,58 +110,48 @@ async function main() {
     }
   );
 
-  server.setRequestHandler(ListToolsRequestSchema, async () => {
-    return {
-      tools: [
-        {
-          name: "java_decompile_plan",
-          description: "Scan for JAR files under a directory and classify them for decompilation planning.",
-          inputSchema: PlanToolSchema
-        },
-        {
-          name: "java_decompile_vineflower",
-          description: "Run Vineflower headless via CLI to decompile JARs into Java sources.",
-          inputSchema: DecompileToolSchema
-        },
-        {
-          name: "java_sources_index",
-          description: "Index decompiled Java sources for packages, classes, and entrypoints.",
-          inputSchema: IndexToolSchema
-        }
-      ]
-    };
-  });
-
-  server.setRequestHandler(CallToolRequestSchema, async (request) => {
-    const { name, arguments: rawArgs } = request.params;
-
-    if (name === "java_decompile_plan" || name === "java.decompile.plan") {
-      const args = PlanInputSchema.parse(rawArgs ?? {});
+  mcpServer.registerTool(
+    "java_decompile_plan",
+    {
+      description: "Scan for JAR files under a directory and classify them for decompilation planning.",
+      inputSchema: PlanInputSchema
+    },
+    async (args) => {
       const result = await handlePlan(args, allowedRoot);
       return toToolResult(result);
     }
+  );
 
-    if (name === "java_decompile_vineflower" || name === "java.decompile.vineflower") {
-      const args = DecompileInputSchema.parse(rawArgs ?? {});
+  mcpServer.registerTool(
+    "java_decompile_vineflower",
+    {
+      description: "Run Vineflower headless via CLI to decompile JARs into Java sources.",
+      inputSchema: DecompileInputSchema
+    },
+    async (args) => {
       const result = await handleDecompile(args, allowedRoot, vineflowerCommand);
       return toToolResult(result);
     }
+  );
 
-    if (name === "java_sources_index" || name === "java.sources.index") {
-      const args = IndexInputSchema.parse(rawArgs ?? {});
+  mcpServer.registerTool(
+    "java_sources_index",
+    {
+      description: "Index decompiled Java sources for packages, classes, and entrypoints.",
+      inputSchema: IndexInputSchema
+    },
+    async (args) => {
       const result = await handleIndex(args, allowedRoot);
       return toToolResult(result);
     }
-
-    throw new Error(`Unknown tool: ${name}`);
-  });
+  );
 
   const transport = new StdioServerTransport();
-  await server.connect(transport);
+  await mcpServer.connect(transport);
   console.error("vineflower-mcp server ready");
 }
 
-function toToolResult(data: unknown) {
+function toToolResult(data: unknown): CallToolResult {
   return {
     content: [
       {
