@@ -31,4 +31,4 @@ NODE
 
 commit_count=$(git -C "$repo_root" rev-list --count --since="@${day_start}" --until="@${day_end}" HEAD)
 
-echo "v${year}.${month}.${day}.${commit_count}"
+echo "${year}.${month}.${day}-${commit_count}"

@@ -35,7 +35,7 @@ This is a single-file MCP (Model Context Protocol) server: all logic lives in `s
 
 ## Versioning and releases
 
-Version format: `vYYYY.MM.DD.N` (UTC date + commit count for that day).
+Version format: `YYYY.MM.DD-N` (UTC date + commit count for that day).
 
 ```bash
 npm run tag:release        # Bump package.json + create git tag

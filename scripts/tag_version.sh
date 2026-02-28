@@ -8,23 +8,23 @@ if [[ -z "$repo_root" ]]; then
 fi
 
 version="$("$repo_root/scripts/get_tag_version.sh")"
-version_no_v="${version#v}"
 
 (
   cd "$repo_root"
-  npm version --no-git-tag-version "$version_no_v" >/dev/null
+  npm version --no-git-tag-version "$version" >/dev/null
 )
 
 update_version_in_file() {
   local file="$1"
+  local ver="$2"
   if [[ ! -f "$file" ]]; then
     return
   fi
 
-  node - <<'NODE' "$file" "$version_no_v"
+  node - <<'NODE' "$file" "$ver"
 const fs = require("fs");
 
-const [file, version] = process.argv.slice(2);
+const [file, ver] = process.argv.slice(2);
 const contents = fs.readFileSync(file, "utf8");
 const marker = 'name: "vineflower-mcp"';
 const markerIndex = contents.indexOf(marker);
@@ -43,7 +43,7 @@ if (!match) {
   process.exit(1);
 }
 
-const updatedAfter = afterMarker.replace(versionRegex, `version: "${version}"`);
+const updatedAfter = afterMarker.replace(versionRegex, `version: "${ver}"`);
 const updated = contents.slice(0, markerIndex) + updatedAfter;
 
 if (updated !== contents) {
@@ -52,7 +52,7 @@ if (updated !== contents) {
 NODE
 }
 
-update_version_in_file "$repo_root/src/server.ts"
-update_version_in_file "$repo_root/dist/server.js"
+update_version_in_file "$repo_root/src/server.ts" "$version"
+update_version_in_file "$repo_root/dist/server.js" "$version"
 
 echo "$version"

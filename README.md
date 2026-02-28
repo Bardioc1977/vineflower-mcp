@@ -77,7 +77,7 @@ Example:
 
 ## Release versioning
 
-Tags drive releases. The version format is `vYYYY.MM.DD.N` (UTC date + commit count for that date).
+Tags drive releases. The version format is `YYYY.MM.DD-N` (UTC date + commit count for that date).
 
 ```bash
 # Update package.json/package-lock.json and server version to match the computed version.
