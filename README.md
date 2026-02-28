@@ -28,7 +28,7 @@ Add a server entry in `~/.codex/config.toml`:
 [mcp_servers.vineflower-mcp]
 command = "node"
 args = ["/path/to/vineflower-mcp/dist/server.js"]
-env = { MCP_ALLOWED_ROOT = "/path/to/workspace", VINEFLOWER_BIN = "vineflower", VINEFLOWER_THREADS = "4" }
+env = { VINEFLOWER_BIN = "vineflower", VINEFLOWER_THREADS = "4" }
 ```
 
 ### Gemini CLI
@@ -42,7 +42,6 @@ Create or update the Gemini MCP config (commonly `~/.config/gemini-cli/mcp.json`
       "command": "node",
       "args": ["/path/to/vineflower-mcp/dist/server.js"],
       "env": {
-        "MCP_ALLOWED_ROOT": "/path/to/workspace",
         "VINEFLOWER_BIN": "vineflower",
         "VINEFLOWER_THREADS": "4"
       }
@@ -68,7 +67,6 @@ Example:
       "command": "node",
       "args": ["/path/to/vineflower-mcp/dist/server.js"],
       "env": {
-        "MCP_ALLOWED_ROOT": "/path/to/workspace",
         "VINEFLOWER_BIN": "vineflower",
         "VINEFLOWER_THREADS": "4"
       }
@@ -108,7 +106,6 @@ Local tag scripts expect a clean working tree; the only allowed local changes ar
 ## Environment
 
 ```bash
-export MCP_ALLOWED_ROOT="/path/to/workspace"
 export VINEFLOWER_BIN="vineflower"
 export VINEFLOWER_JAR="/path/to/vineflower.jar"
 export MCP_TIMEOUT_MS="1800000"

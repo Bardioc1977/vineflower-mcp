@@ -20,6 +20,7 @@ const MCP_TIMEOUT_MS = getEnvInt("MCP_TIMEOUT_MS", DEFAULT_TIMEOUT_MS);
 const MCP_MAX_CAPTURE_CHARS = getEnvInt("MCP_MAX_CAPTURE_CHARS", DEFAULT_MAX_CAPTURE_CHARS);
 const MCP_MAX_JARS = getEnvInt("MCP_MAX_JARS", DEFAULT_MAX_JARS);
 const DEFAULT_THREADS_ENV = getEnvInt("VINEFLOWER_THREADS", DEFAULT_THREADS);
+const MCP_VERBOSE = getEnvBoolean("MCP_VERBOSE", true); // Enable verbose output by default
 
 const VINEFLOWER_BIN = process.env.VINEFLOWER_BIN || "vineflower";
 const PROJECT_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -88,7 +89,6 @@ const IndexInputSchema = z.object({
 });
 
 async function main() {
-  const allowedRoot = await resolveAllowedRoot();
   const vineflowerCommand = await ensureVineflower();
   const setupOnly =
     process.argv.includes("--setup") || process.argv.includes("--prefetch-vineflower");
@@ -117,7 +117,7 @@ async function main() {
       inputSchema: PlanInputSchema
     },
     async (args) => {
-      const result = await handlePlan(args, allowedRoot);
+      const result = await handlePlan(args);
       return toToolResult(result);
     }
   );
@@ -129,7 +129,7 @@ async function main() {
       inputSchema: DecompileInputSchema
     },
     async (args) => {
-      const result = await handleDecompile(args, allowedRoot, vineflowerCommand);
+      const result = await handleDecompile(args, vineflowerCommand);
       return toToolResult(result);
     }
   );
@@ -141,7 +141,7 @@ async function main() {
       inputSchema: IndexInputSchema
     },
     async (args) => {
-      const result = await handleIndex(args, allowedRoot);
+      const result = await handleIndex(args);
       return toToolResult(result);
     }
   );
@@ -160,15 +160,6 @@ function toToolResult(data: unknown): CallToolResult {
       }
     ]
   };
-}
-
-async function resolveAllowedRoot() {
-  const candidate = process.env.MCP_ALLOWED_ROOT?.trim() || process.cwd();
-  try {
-    return await fs.realpath(candidate);
-  } catch {
-    return path.resolve(candidate);
-  }
 }
 
 function getEnvInt(name: string, fallback: number) {
@@ -191,21 +182,8 @@ function getEnvBoolean(name: string, fallback: boolean) {
   return ["1", "true", "yes", "on"].includes(raw.toLowerCase());
 }
 
-function isWithinAllowedRoot(allowedRoot: string, candidate: string) {
-  const relative = path.relative(allowedRoot, candidate);
-  return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
-}
-
-async function resolvePathWithinAllowed(
-  inputPath: string,
-  allowedRoot: string,
-  mustExist: boolean
-) {
-  const resolved = mustExist ? await fs.realpath(inputPath) : path.resolve(inputPath);
-  if (!isWithinAllowedRoot(allowedRoot, resolved)) {
-    throw new Error(`Path is outside MCP_ALLOWED_ROOT: ${inputPath}`);
-  }
-  return resolved;
+async function resolvePath(inputPath: string, mustExist: boolean) {
+  return mustExist ? await fs.realpath(inputPath) : path.resolve(inputPath);
 }
 
 async function ensureVineflower(): Promise<VineflowerCommand> {
@@ -382,13 +360,20 @@ async function downloadFile(url: string, destPath: string) {
 }
 
 async function handlePlan(
-  args: z.infer<typeof PlanInputSchema>,
-  allowedRoot: string
+  args: z.infer<typeof PlanInputSchema>
 ) {
-  const searchDir = await resolvePathWithinAllowed(args.searchDir, allowedRoot, true);
+  const searchDir = await resolvePath(args.searchDir, true);
   const dirStat = await fs.stat(searchDir);
   if (!dirStat.isDirectory()) {
     throw new Error(`searchDir is not a directory: ${args.searchDir}`);
+  }
+
+  if (MCP_VERBOSE) {
+    console.error(`\n========== JAR SCAN STARTING ==========`);
+    console.error(`Search directory: ${searchDir}`);
+    console.error(`JAR glob hint: ${args.jarGlobHint || "(none)"}`);
+    console.error(`Max results: ${args.maxResults}`);
+    console.error(`=======================================\n`);
   }
 
   const hint = args.jarGlobHint?.toLowerCase() ?? "";
@@ -401,6 +386,7 @@ async function handlePlan(
     truncated: false
   };
 
+  let directoriesScanned = 0;
   const queue: string[] = [searchDir];
   while (queue.length > 0) {
     const current = queue.pop();
@@ -408,11 +394,18 @@ async function handlePlan(
       continue;
     }
 
+    directoriesScanned++;
+    if (MCP_VERBOSE && directoriesScanned % 100 === 0) {
+      console.error(`[scan] Scanned ${directoriesScanned} directories, found ${jars.length} JARs so far...`);
+    }
+
     let entries;
     try {
       entries = await fs.readdir(current, { withFileTypes: true });
     } catch (error) {
-      console.error(`Failed to read directory ${current}:`, error);
+      if (MCP_VERBOSE) {
+        console.error(`[scan] Failed to read directory ${current}:`, error);
+      }
       continue;
     }
 
@@ -446,9 +439,28 @@ async function handlePlan(
       counts[kind as "library" | "product" | "unknown"] += 1;
       if (jars.length >= args.maxResults) {
         counts.truncated = true;
+        if (MCP_VERBOSE) {
+          console.error(`\n========== JAR SCAN COMPLETE (TRUNCATED) ==========`);
+          console.error(`Directories scanned: ${directoriesScanned}`);
+          console.error(`JARs found: ${jars.length} (max reached)`);
+          console.error(`  - Library: ${counts.library}`);
+          console.error(`  - Product: ${counts.product}`);
+          console.error(`  - Unknown: ${counts.unknown}`);
+          console.error(`===================================================\n`);
+        }
         return { jars, counts };
       }
     }
+  }
+
+  if (MCP_VERBOSE) {
+    console.error(`\n========== JAR SCAN COMPLETE ==========`);
+    console.error(`Directories scanned: ${directoriesScanned}`);
+    console.error(`JARs found: ${jars.length}`);
+    console.error(`  - Library: ${counts.library}`);
+    console.error(`  - Product: ${counts.product}`);
+    console.error(`  - Unknown: ${counts.unknown}`);
+    console.error(`========================================\n`);
   }
 
   return { jars, counts };
@@ -485,17 +497,16 @@ function classifyJar(fileName: string) {
 
 async function handleDecompile(
   args: z.infer<typeof DecompileInputSchema>,
-  allowedRoot: string,
   vineflowerCommand: VineflowerCommand
 ) {
   if (args.inputJars.length + args.libraryJars.length > MCP_MAX_JARS) {
     throw new Error(`Too many jars: limit is ${MCP_MAX_JARS}`);
   }
 
-  const inputJars = await resolveExistingFiles(args.inputJars, allowedRoot, "inputJars");
-  const libraryJars = await resolveExistingFiles(args.libraryJars, allowedRoot, "libraryJars");
+  const inputJars = await resolveExistingFiles(args.inputJars, "inputJars");
+  const libraryJars = await resolveExistingFiles(args.libraryJars, "libraryJars");
 
-  const outputDir = await resolvePathWithinAllowed(args.outputDir, allowedRoot, false);
+  const outputDir = await resolvePath(args.outputDir, false);
   const outputStat = await statOrNull(outputDir);
   if (outputStat?.isFile()) {
     throw new Error(`outputDir is a file: ${args.outputDir}`);
@@ -504,11 +515,7 @@ async function handleDecompile(
     throw new Error(`outputDir already exists and overwrite=false: ${args.outputDir}`);
   }
   if (outputStat && args.overwrite) {
-    const realOutput = await fs.realpath(outputDir);
-    if (!isWithinAllowedRoot(allowedRoot, realOutput)) {
-      throw new Error(`Refusing to delete outside MCP_ALLOWED_ROOT: ${outputDir}`);
-    }
-    await fs.rm(realOutput, { recursive: true, force: true });
+    await fs.rm(await fs.realpath(outputDir), { recursive: true, force: true });
   }
 
   const threads = args.options.threads ?? DEFAULT_THREADS_ENV;
@@ -519,6 +526,26 @@ async function handleDecompile(
   const fullArgs = [...vineflowerCommand.argsPrefix, ...commandArgs];
   const version = vineflowerCommand.version || "unknown";
 
+  // Verbose progress logging
+  if (MCP_VERBOSE) {
+    console.error(`\n========== VINEFLOWER DECOMPILATION STARTING ==========`);
+    console.error(`Vineflower version: ${version}`);
+    console.error(`Threads: ${threads}`);
+    console.error(`Output directory: ${outputDir}`);
+    console.error(`Input JARs (${inputJars.length}):`);
+    for (const jar of inputJars) {
+      console.error(`  - ${jar.path} (${(jar.sizeBytes / 1024 / 1024).toFixed(2)} MB)`);
+    }
+    if (libraryJars.length > 0) {
+      console.error(`Library JARs (${libraryJars.length}):`);
+      for (const jar of libraryJars) {
+        console.error(`  - ${jar.path} (${(jar.sizeBytes / 1024 / 1024).toFixed(2)} MB)`);
+      }
+    }
+    console.error(`Command: ${formatCommand(vineflowerCommand.bin, fullArgs)}`);
+    console.error(`=======================================================\n`);
+  }
+
   const start = Date.now();
   const commandResult = await runCommand(
     vineflowerCommand.bin,
@@ -527,6 +554,15 @@ async function handleDecompile(
     MCP_MAX_CAPTURE_CHARS
   );
   const durationMs = Date.now() - start;
+
+  // Verbose completion logging
+  if (MCP_VERBOSE) {
+    console.error(`\n========== VINEFLOWER DECOMPILATION COMPLETE ==========`);
+    console.error(`Exit code: ${commandResult.exitCode}`);
+    console.error(`Duration: ${(durationMs / 1000).toFixed(2)} seconds`);
+    console.error(`Timed out: ${commandResult.timedOut}`);
+    console.error(`=======================================================\n`);
+  }
 
   const stats = await collectJavaStats(outputDir);
 
@@ -537,7 +573,6 @@ async function handleDecompile(
     const manifest = {
       tool: "java_decompile_vineflower",
       createdAt: new Date().toISOString(),
-      allowedRoot,
       vineflower: {
         bin: vineflowerCommand.bin,
         version,
@@ -582,12 +617,11 @@ async function handleDecompile(
 
 async function resolveExistingFiles(
   paths: string[],
-  allowedRoot: string,
   label: string
 ) {
   const resolved: Array<{ path: string; sizeBytes: number }> = [];
   for (const inputPath of paths) {
-    const resolvedPath = await resolvePathWithinAllowed(inputPath, allowedRoot, true);
+    const resolvedPath = await resolvePath(inputPath, true);
     const stat = await fs.stat(resolvedPath);
     if (!stat.isFile()) {
       throw new Error(`${label} must be files: ${inputPath}`);
@@ -678,6 +712,10 @@ async function runCommand(
 
   const onStdout = (chunk: Buffer) => {
     const text = chunk.toString("utf8");
+    if (MCP_VERBOSE) {
+      // Stream output in real-time for visibility
+      process.stderr.write(`[vineflower stdout] ${text}`);
+    }
     if (stdout.length < maxCaptureChars) {
       const remaining = maxCaptureChars - stdout.length;
       stdout += text.slice(0, remaining);
@@ -691,6 +729,10 @@ async function runCommand(
 
   const onStderr = (chunk: Buffer) => {
     const text = chunk.toString("utf8");
+    if (MCP_VERBOSE) {
+      // Stream output in real-time for visibility
+      process.stderr.write(`[vineflower stderr] ${text}`);
+    }
     if (stderr.length < maxCaptureChars) {
       const remaining = maxCaptureChars - stderr.length;
       stderr += text.slice(0, remaining);
@@ -798,13 +840,20 @@ async function collectJavaStats(outputDir: string) {
 }
 
 async function handleIndex(
-  args: z.infer<typeof IndexInputSchema>,
-  allowedRoot: string
+  args: z.infer<typeof IndexInputSchema>
 ) {
-  const sourceRoot = await resolvePathWithinAllowed(args.sourceRoot, allowedRoot, true);
+  const sourceRoot = await resolvePath(args.sourceRoot, true);
   const rootStat = await fs.stat(sourceRoot);
   if (!rootStat.isDirectory()) {
     throw new Error(`sourceRoot is not a directory: ${args.sourceRoot}`);
+  }
+
+  if (MCP_VERBOSE) {
+    console.error(`\n========== SOURCE INDEXING STARTING ==========`);
+    console.error(`Source root: ${sourceRoot}`);
+    console.error(`Max file bytes: ${args.maxFileBytes}`);
+    console.error(`Max files: ${args.maxFiles}`);
+    console.error(`==============================================\n`);
   }
 
   const symbols: Record<string, { classes: string[]; files: string[] }> = {};
@@ -878,7 +927,19 @@ async function handleIndex(
       }
 
       javaFilesIndexed += 1;
+      if (MCP_VERBOSE && javaFilesIndexed % 500 === 0) {
+        console.error(`[index] Indexed ${javaFilesIndexed} Java files, ${Object.keys(symbols).length} packages so far...`);
+      }
     }
+  }
+
+  if (MCP_VERBOSE) {
+    console.error(`\n========== SOURCE INDEXING COMPLETE ==========`);
+    console.error(`Java files indexed: ${javaFilesIndexed}`);
+    console.error(`Packages found: ${Object.keys(symbols).length}`);
+    console.error(`Main methods found: ${mains.length}`);
+    console.error(`ServiceLoader hints: ${servicesHints}`);
+    console.error(`==============================================\n`);
   }
 
   const symbolsPath = path.join(sourceRoot, "symbols.json");
